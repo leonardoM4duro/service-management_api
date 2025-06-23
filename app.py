@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
-from models import client, user, service_order
+from models import client, user, service_order, material
 from api.router import router
 
 client_app = [
@@ -12,6 +12,11 @@ client_app = [
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
+    swagger_ui_parameters={
+        "docExpansion": "none",  # Mantém todas as tags fechadas
+        "defaultModelsExpandDepth": -1,  # Oculta os modelos por padrão
+        "defaultModelExpandDepth": -1,   # Oculta detalhes dos modelos
+    }
 )
 
 app.add_middleware(
@@ -34,5 +39,6 @@ async def startup_event():
             client.Client,
             user.User,
             service_order.ServiceOrder,
+            material.Material,
         ]
     )

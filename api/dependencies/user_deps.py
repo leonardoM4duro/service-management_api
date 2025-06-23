@@ -17,7 +17,7 @@ oauth_reusable = OAuth2PasswordBearer(
 
 
 async def get_current_user(token: str = Depends(oauth_reusable)) -> User:
-    if(token ==  str(None)):
+    if(token ==  None):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token is required",
