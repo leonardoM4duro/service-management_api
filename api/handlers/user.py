@@ -62,7 +62,7 @@ async def delete_user(user_id: PydanticObjectId):
     
 @user_router.get("/current_user", summary="Get current user information", response_model=ResponseModel)
 async def get_me(user: User = Depends(get_current_user)):
-    if not user:
+    if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     return ResponseModel.build(data=UserResponse.from_user(user))

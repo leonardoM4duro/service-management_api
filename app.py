@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
-from models import client, user
+from models import client, user, service_order
 from api.router import router
 
 client_app = [
@@ -33,5 +33,6 @@ async def startup_event():
         document_models=[
             client.Client,
             user.User,
+            service_order.ServiceOrder,
         ]
     )
