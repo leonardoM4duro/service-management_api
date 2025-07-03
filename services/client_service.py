@@ -1,61 +1,75 @@
+from typing import Dict, List, Any
 from repositories.client_repository import ClientRepository
 from schemas.client_schema import clientEntity, list_clientEntity
-from datetime import datetime
+from core.constants import ErrorMessages, SuccessMessages
+
 
 class ClientService:
-    async def list_clients(self):
+    def __init__(self, client_repository: ClientRepository = None):
+        self.repository = client_repository or ClientRepository()
+
+    async def list_clients(self) -> List[Dict[str, Any]]:
+        # Lists all registered clients
         try:
-            clients = await ClientRepository.list_clients()
+            clients = await self.repository.list_clients()
             return list_clientEntity(clients)
         except Exception:
-            raise Exception("Erro ao listar clientes.")
+            raise Exception(ErrorMessages.CLIENT_LIST_ERROR)
 
-    async def create_client(self, client):
+    async def create_client(self, client) -> List[Dict[str, Any]]:
+        # Creates a new client after validations
         try:
-            duplicate = await ClientRepository.find_duplicate(client.email, client.phone)
-            if duplicate:
-                raise ValueError("Já existe um cliente com este e-mail ou telefone.")
-            client_db = await ClientRepository.create_client(client)
+            await self._validate_duplicate_client(client.email, client.phone)
+            await self.repository.create_client(client)
             return await self.list_clients()
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro interno ao criar cliente.")
+            raise Exception(ErrorMessages.CLIENT_CREATE_ERROR)
 
-    async def get_client(self, client_id):
+    async def get_client(self, client_id: str) -> Dict[str, Any]:
+        # Gets a specific client by ID
         try:
-            client = await ClientRepository.get_client(client_id)
-            if client:
-                return clientEntity(client)
-            else:
-                raise ValueError("Client not found")
+            client = await self._get_client_by_id(client_id)
+            return clientEntity(client)
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro ao buscar cliente.")
+            raise Exception(ErrorMessages.CLIENT_GET_ERROR)
 
-    async def update_client(self, client_id, client):
+    async def update_client(self, client_id: str, client) -> Dict[str, Any]:
+        # Updates existing client data
         try:
-            client_db = await ClientRepository.get_client(client_id)
-            if not client_db:
-                raise ValueError("Client not found")
-            duplicate = await ClientRepository.find_duplicate(client.email, client.phone, exclude_id=client_id)
-            if duplicate:
-                raise ValueError("Já existe outro cliente com este e-mail ou telefone.")
-            updated_client = await ClientRepository.update_client(client_id, client, client_db.created_at)
+            client_db = await self._get_client_by_id(client_id)
+            await self._validate_duplicate_client(client.email, client.phone, client_id)
+            updated_client = await self.repository.update_client(client_id, client, client_db.created_at)
             return clientEntity(updated_client)
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro interno ao atualizar cliente.")
+            raise Exception(ErrorMessages.CLIENT_UPDATE_ERROR)
 
-    async def delete_client(self, client_id):
+    async def delete_client(self, client_id: str) -> Dict[str, str]:
+        # Removes a client from the system
         try:
-            client = await ClientRepository.delete_client(client_id)
-            if not client:
-                raise ValueError("Client not found")
-            return {"message": "Client deleted successfully"}
+            result = await self.repository.delete_client(client_id)
+            if not result:
+                raise ValueError(ErrorMessages.CLIENT_NOT_FOUND)
+            return {"message": SuccessMessages.CLIENT_DELETED}
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro ao deletar cliente.")
+            raise Exception(ErrorMessages.CLIENT_DELETE_ERROR)
+
+    async def _get_client_by_id(self, client_id: str):
+        # Gets client by ID with existence validation
+        client = await self.repository.get_client(client_id)
+        if not client:
+            raise ValueError(ErrorMessages.CLIENT_NOT_FOUND)
+        return client
+
+    async def _validate_duplicate_client(self, email: str, phone: str, exclude_id: str = None):
+        # Validates if client with same email or phone already exists
+        duplicate = await self.repository.find_duplicate(email, phone, exclude_id=exclude_id)
+        if duplicate:
+            raise ValueError(ErrorMessages.CLIENT_DUPLICATE_EMAIL_PHONE)

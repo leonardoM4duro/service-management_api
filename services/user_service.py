@@ -7,8 +7,10 @@ from repositories.user_repository import UserRepository
 from schemas.user_schema import UserResponse
 
 class UserService:
-    @staticmethod
-    async def create_user(user_data: UserCreate) -> UserResponse:
+    def __init__(self, user_repository: UserRepository = None):
+        self.repository = user_repository or UserRepository()
+
+    async def create_user(self, user_data: UserCreate) -> UserResponse:
         existing_user = await User.find_one(User.email == user_data.email)
         if existing_user:
             raise ValueError("Já existe um usuário com este e-mail.")
@@ -26,24 +28,21 @@ class UserService:
         user_dict["hash_password"] = hashed_password
         user = User(**user_dict)
         
-        user = await UserRepository.insert_user(user)
+        user = await self.repository.insert_user(user)
         return UserResponse.from_user(user)
 
-    @staticmethod
-    async def get_user_by_id(user_id: PydanticObjectId) -> Optional[UserResponse]:
-        user = await UserRepository.get_user_by_id(user_id)
+    async def get_user_by_id(self, user_id: PydanticObjectId) -> Optional[UserResponse]:
+        user = await self.repository.get_user_by_id(user_id)
         if user:
             return UserResponse.from_user(user)
         return None
 
-    @staticmethod
-    async def get_all_users() -> List[UserResponse]:
-        users = await UserRepository.get_all_users()
+    async def get_all_users(self) -> List[UserResponse]:
+        users = await self.repository.get_all_users()
         return [UserResponse.from_user(user) for user in users]
 
-    @staticmethod
-    async def update_user(user_data: UserUpdate) -> Optional[UserResponse]:
-        user = await UserRepository.get_user_by_id(user_data.id)
+    async def update_user(self, user_data: UserUpdate) -> Optional[UserResponse]:
+        user = await self.repository.get_user_by_id(user_data.id)
         if user:
             existing_user = await User.find_one(User.email == user_data.email, User.id != user_data.id)
             if existing_user:
@@ -51,33 +50,29 @@ class UserService:
             
             user.name = user_data.name
             user.email = user_data.email            
-            user = await UserRepository.update_user(user)
+            user = await self.repository.update_user(user)
             return UserResponse.from_user(user)
         return None
 
-    @staticmethod
-    async def delete_user(user_id: PydanticObjectId) -> bool:
-        user = await UserRepository.get_user_by_id(user_id)
+    async def delete_user(self, user_id: PydanticObjectId) -> bool:
+        user = await self.repository.get_user_by_id(user_id)
         if user:
-            await UserRepository.delete_user(user)
+            await self.repository.delete_user(user)
             return True
         return False
     
-    @staticmethod
-    async def get_user_by_email(email: str) -> Optional[UserResponse]:
-        user = await UserRepository.get_user_by_email(email)
+    async def get_user_by_email(self, email: str) -> Optional[UserResponse]:
+        user = await self.repository.get_user_by_email(email)
         if user:
             return UserResponse.from_user(user)
         return None
     
-    @staticmethod
-    async def authenticate_user(email: str, password: str) -> Optional[UserResponse]:
-        user = await UserRepository.get_user_by_username(email)
+    async def authenticate_user(self, email: str, password: str) -> Optional[UserResponse]:
+        user = await self.repository.get_user_by_username(email)
         if user and verify_password(password, user.hash_password):
             return UserResponse.from_user(user)
         return None
 
-    @staticmethod
-    async def get_user_by_id(id: str) -> Optional[UserResponse]:
-        user = await UserRepository.get_user_by_id(PydanticObjectId(id))
+    async def get_user_by_id(self, id: str) -> Optional[UserResponse]:
+        user = await self.repository.get_user_by_id(PydanticObjectId(id))
         return user

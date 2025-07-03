@@ -1,95 +1,127 @@
+from typing import Dict, List, Any
 from repositories.material_repository import MaterialRepository
 from schemas.material_schema import materialEntity, list_materialEntity
-from datetime import datetime
+from core.constants import ErrorMessages, SuccessMessages, ValidationConfig
+
 
 class MaterialService:
-    async def list_materials(self):
+    def __init__(self, material_repository: MaterialRepository = None):
+        self.repository = material_repository or MaterialRepository()
+    async def list_materials(self) -> List[Dict[str, Any]]:
+        # Lists all registered materials
         try:
-            materials = await MaterialRepository.list_materials()
+            materials = await self.repository.list_materials()
             return list_materialEntity(materials)
         except Exception:
-            raise Exception("Erro ao listar materiais.")
+            raise Exception(ErrorMessages.MATERIAL_LIST_ERROR)
 
-    async def create_material(self, material):
+    async def create_material(self, material) -> List[Dict[str, Any]]:
+        # Creates a new material after validations
         try:
-            # Verifica se já existe material com mesmo código ou nome
-            duplicate = await MaterialRepository.find_duplicate(material.code, material.name)
-            if duplicate:
-                raise ValueError("Já existe um material com este código ou nome.")
-            await MaterialRepository.create_material(material)
+            # Automatically generates the material code
+            material.code = await self._generate_material_code(material.name)
+            
+            if await self.repository.validate_duplicate_material(material.name):
+                raise ValueError(ErrorMessages.MATERIAL_DUPLICATE_CODE_NAME)
+            await self.repository.create_material(material)
             return await self.list_materials()
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro interno ao criar material.")
+            raise Exception(ErrorMessages.MATERIAL_CREATE_ERROR)
 
-    async def get_material(self, material_id):
+    async def get_material(self, material_id: str) -> Dict[str, Any]:
+        # Searches for a specific material by ID
         try:
-            material = await MaterialRepository.get_material(material_id)
-            if material:
-                return materialEntity(material)
-            else:
-                raise ValueError("Material não encontrado")
+            material = await self._get_material_by_id(material_id)
+            return materialEntity(material)
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro ao buscar material.")
+            raise Exception(ErrorMessages.MATERIAL_GET_ERROR)
 
-    async def update_material(self, material_id, material):
+    async def update_material(self, material_id: str, material) -> Dict[str, Any]:
+        # Updates data of an existing material
         try:
-            material_db = await MaterialRepository.get_material(material_id)
-            if not material_db:
-                raise ValueError("Material não encontrado")
+            material_db = await self._get_material_by_id(material_id)
             
-            # Verifica duplicatas excluindo o próprio material
-            duplicate = await MaterialRepository.find_duplicate(material.code, material.name, exclude_id=material_id)
-            if duplicate:
-                raise ValueError("Já existe outro material com este código ou nome.")
+            # Preserves the original code - does not allow modification
+            material.code = material_db.code
             
-            updated_material = await MaterialRepository.update_material(material_id, material, material_db.created_at)
+            if await self.repository.validate_duplicate_material(material.name, material_id):
+                raise ValueError(ErrorMessages.MATERIAL_DUPLICATE_CODE_NAME)
+            updated_material = await self.repository.update_material(material_id, material, material_db.created_at)
             return materialEntity(updated_material)
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro interno ao atualizar material.")
+            raise Exception(ErrorMessages.MATERIAL_UPDATE_ERROR)
 
-    async def delete_material(self, material_id):
+    async def delete_material(self, material_id: str) -> Dict[str, str]:
+        # Removes a material from the system
         try:
-            material = await MaterialRepository.delete_material(material_id)
-            if not material:
-                raise ValueError("Material não encontrado")
-            return {"message": "Material deletado com sucesso"}
+            result = await self.repository.delete_material(material_id)
+            if not result:
+                raise ValueError(ErrorMessages.MATERIAL_NOT_FOUND)
+            return {"message": SuccessMessages.MATERIAL_DELETED}
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro ao deletar material.")
+            raise Exception(ErrorMessages.MATERIAL_DELETE_ERROR)
 
-    async def get_low_stock_materials(self):
+    async def get_low_stock_materials(self) -> List[Dict[str, Any]]:
+        # Lists materials with low stock
         try:
-            materials = await MaterialRepository.get_low_stock_materials()
+            materials = await self.repository.get_low_stock_materials()
             return list_materialEntity(materials)
         except Exception:
-            raise Exception("Erro ao buscar materiais com estoque baixo.")
+            raise Exception(ErrorMessages.MATERIAL_LOW_STOCK_ERROR)
 
-    async def update_stock(self, material_id, new_quantity):
+    async def update_stock(self, material_id: str, new_quantity: int) -> Dict[str, Any]:
+        # Updates the stock of a material
         try:
-            if new_quantity < 0:
-                raise ValueError("A quantidade não pode ser negativa.")
-            
-            material = await MaterialRepository.get_material(material_id)
-            if not material:
-                raise ValueError("Material não encontrado")
-            
-            updated_material = await MaterialRepository.update_stock(material_id, new_quantity)
+            self._validate_stock_quantity(new_quantity)
+            material = await self._get_material_by_id(material_id)
+            updated_material = await self.repository.update_stock(material.id, new_quantity)
             return materialEntity(updated_material)
         except ValueError as ve:
             raise ve
         except Exception:
-            raise Exception("Erro ao atualizar estoque.")
+            raise Exception(ErrorMessages.MATERIAL_UPDATE_STOCK_ERROR)
 
-    async def search_by_category(self, category):
+    async def search_by_category(self, category: str) -> List[Dict[str, Any]]:
+        # Searches for materials by category
         try:
-            materials = await MaterialRepository.search_by_category(category)
+            materials = await self.repository.search_by_category(category)
             return list_materialEntity(materials)
         except Exception:
-            raise Exception("Erro ao buscar materiais por categoria.")
+            raise Exception(ErrorMessages.MATERIAL_SEARCH_CATEGORY_ERROR)
+
+    async def _get_material_by_id(self, material_id: str):
+        # Searches for material by ID with existence validation
+        material = await self.repository.get_material(material_id)
+        if not material:
+            raise ValueError(ErrorMessages.MATERIAL_NOT_FOUND)
+        return material
+
+    def _validate_stock_quantity(self, quantity: int):
+        # Validates if the stock quantity is valid
+        if quantity < ValidationConfig.MIN_STOCK_LEVEL:
+            raise ValueError(ErrorMessages.MATERIAL_NEGATIVE_QUANTITY)
+    
+    async def _generate_material_code(self, name: str) -> str:
+        # Generates automatic code based on the first two letters of the name + sequential number
+        try:
+            # Gets the first two letters of the name in uppercase
+            prefix = name[:2].upper()
+            
+            # Counts how many materials already exist with this prefix
+            count = await self.repository.count_materials_by_prefix(prefix)
+            
+            # Generates the next sequential number (with 3 digits)
+            next_number = count + 1
+            code = f"{prefix}{next_number:03d}"
+            
+            return code
+        except Exception:
+            raise Exception(ErrorMessages.MATERIAL_CODE_GENERATE_ERROR)

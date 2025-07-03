@@ -15,6 +15,7 @@ oauth_reusable = OAuth2PasswordBearer(
     auto_error=False
 )
 
+user_service = UserService()
 
 async def get_current_user(token: str = Depends(oauth_reusable)) -> User:
     if(token ==  None):
@@ -33,7 +34,7 @@ async def get_current_user(token: str = Depends(oauth_reusable)) -> User:
             headers={"WWW-Authenticate": "Bearer"},
             )     
         
-    user = await UserService.get_user_by_id(token_data.sub)
+    user = await user_service.get_user_by_id(token_data.sub)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

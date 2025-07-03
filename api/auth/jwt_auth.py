@@ -12,10 +12,11 @@ from core.config import settings
 from fastapi import Body
 
 auth_router = APIRouter()
+user_service = UserService()
 
 @auth_router.post("/login", summary="Login to get access token", response_model=TokenSchema)
 async def login(data : OAuth2PasswordRequestForm = Depends()):
-    user = await UserService.authenticate_user(data.username, data.password)
+    user = await user_service.authenticate_user(data.username, data.password)
     if not user:
         raise HTTPException(status_code=401, detail="E-mail ou senha inválidos.")
     

@@ -7,13 +7,13 @@ from .base_model import BaseEntity
 class Material(Document, BaseEntity):
     name: str
     description: str
-    unit: str  # unidade de medida (kg, m, l, etc.)
+    unit: str  # unit of measurement (kg, m, l, etc.)
     unit_price: float
     stock_quantity: float
     minimum_stock: float
     unit_price: float
     category: str
-    code: str  # código interno do material
+    code: str  # internal material code
     disabled: bool = False 
 
     class Settings:
@@ -27,4 +27,4 @@ class MaterialCreateUpdate(BaseModel):
     stock_quantity: float
     minimum_stock: float
     category: str
-    code: str
+    code: Optional[str] = None

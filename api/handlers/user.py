@@ -9,11 +9,12 @@ from api.dependencies.user_deps import get_current_user
 
 
 user_router = APIRouter(dependencies=[Depends(get_current_user)])
+service = UserService()
 
 @user_router.post("/user", response_model=ResponseModel, status_code=status.HTTP_201_CREATED)
 async def create_user(user: UserCreate):
     try:
-        created_user = await UserService.create_user(user)
+        created_user = await service.create_user(user)
         return ResponseModel.build(data=created_user)
     except ValueError as ve:
         return ResponseModel.build(success=False, error=str(ve))
@@ -23,7 +24,7 @@ async def create_user(user: UserCreate):
 @user_router.get("/users", response_model=ResponseModel)
 async def get_all_users():
     try:
-        users = await UserService.get_all_users()
+        users = await service.get_all_users()
         return ResponseModel.build(data=users)
     except Exception as e:
         return ResponseModel.build(success=False, error=str(e))
@@ -31,7 +32,7 @@ async def get_all_users():
 @user_router.get("/user/{user_id}", response_model=ResponseModel)
 async def get_user_by_id(user_id: PydanticObjectId):
     try:
-        user = await UserService.get_user_by_id(user_id)
+        user = await service.get_user_by_id(user_id)
         if not user:
             return ResponseModel.build(success=False, error="User not found")
         return ResponseModel.build(data=user)
@@ -41,7 +42,7 @@ async def get_user_by_id(user_id: PydanticObjectId):
 @user_router.put("/user", response_model=ResponseModel)
 async def update_user(user: UserUpdate):
     try:
-        updated_user = await UserService.update_user(user)
+        updated_user = await service.update_user(user)
         if not updated_user:
             return ResponseModel.build(success=False, error="User not found")
         return ResponseModel.build(data=updated_user)
@@ -53,7 +54,7 @@ async def update_user(user: UserUpdate):
 @user_router.delete("/user/{user_id}", response_model=ResponseModel)
 async def delete_user(user_id: PydanticObjectId):
     try:
-        deleted = await UserService.delete_user(user_id)
+        deleted = await service.delete_user(user_id)
         if not deleted:
             return ResponseModel.build(success=False, error="User not found")
         return ResponseModel.build(success=True)

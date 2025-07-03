@@ -47,12 +47,10 @@ class MaterialRepository:
 
     @staticmethod
     async def get_low_stock_materials():
-        """Retorna materiais com estoque abaixo do mínimo"""
         return await Material.find(Material.stock_quantity <= Material.minimum_stock).to_list()
 
     @staticmethod
     async def update_stock(material_id, new_quantity):
-        """Atualiza apenas a quantidade em estoque"""
         await Material.find_one(Material.id == PydanticObjectId(material_id)).set({
             "stock_quantity": new_quantity,
             "updated_at": datetime.now()
@@ -61,5 +59,23 @@ class MaterialRepository:
 
     @staticmethod
     async def search_by_category(category):
-        """Busca materiais por categoria"""
         return await Material.find(Material.category == category).to_list()
+    
+    @staticmethod
+    async def count_materials_by_prefix(prefix: str) -> int:
+        return await Material.find({"code": {"$regex": f"^{prefix}\\d+$"}}).count()
+    
+    @staticmethod
+    async def validate_duplicate_material(name: str, exclude_id: str = None) -> bool:
+        """Validates if material with same name already exists (code is generated automatically)
+        Searches only for duplicate name, since code is unique and automatically generated
+        Returns True if duplicate exists, False otherwise"""
+        query_name = {"name": name}
+        if exclude_id:
+            query_name = {"$and": [
+                {"_id": {"$ne": PydanticObjectId(exclude_id)}},
+                {"name": name}
+            ]}
+        
+        duplicate_name = await Material.find_one(query_name)
+        return duplicate_name is not None
